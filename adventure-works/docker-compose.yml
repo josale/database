@@ -1,0 +1,20 @@
+services:
+  db:
+    build: .                     # Usa el Dockerfile de la carpeta actual
+    container_name: pg-aw
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: adventureworks
+    ports:
+      - "5432:5432"              # expone el puerto a tu host
+    volumes:
+      - pgdata_aw:/var/lib/postgresql/data
+    healthcheck:                 # opcional, para esperar a que esté listo
+      test: ["CMD-SHELL", "pg_isready -U postgres -d adventureworks"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata_aw:
