@@ -9,23 +9,53 @@
 -- =====================================================
 
 -- =====================================================
+-- CONFIGURACIÓN DE LOGGING Y SPOOL
+-- =====================================================
+
+-- Debe existir el directorio de logs antes de ejecutar este script.
+
+-- Configurar spool para capturar toda la salida
+\o | cat > "logs/andina_db_install_$(date +%Y%m%d_%H%M%S).log"
+
+-- Mostrar información de inicio
+\echo '====================================================='
+\echo 'ANDINA DB - Iniciando instalación'
+\echo 'Fecha: ' 
+\! date
+\echo 'Usuario: ' 
+\! whoami
+\echo 'Directorio: ' 
+\! pwd
+\echo 'PostgreSQL Version: '
+SELECT version();
+\echo '====================================================='
+
+-- =====================================================
 -- 1. CREACIÓN DE BASE DE DATOS Y ESQUEMA
 -- =====================================================
 
 -- Crear base de datos
+\echo 'Creando base de datos dbandina...'
+DROP DATABASE IF EXISTS dbandina;
 CREATE DATABASE dbandina
     WITH 
     ENCODING = 'UTF8'
-    LC_COLLATE = 'es_ES.UTF-8'
-    LC_CTYPE = 'es_ES.UTF-8'
+    LC_COLLATE = 'C'
+    LC_CTYPE = 'C'
     TEMPLATE = template0;
 
+\echo 'Base de datos creada exitosamente.'
+
 -- Conectar a la base de datos creada
+\echo 'Conectando a la base de datos dbandina...'
 \c dbandina;
 
 -- Crear esquema principal
+\echo 'Creando esquema ventas...'
 CREATE SCHEMA IF NOT EXISTS ventas 
     AUTHORIZATION CURRENT_USER;
+
+\echo 'Esquema ventas creado exitosamente.'
 
 -- Establecer esquema por defecto
 SET search_path TO ventas, public;
@@ -34,9 +64,13 @@ SET search_path TO ventas, public;
 -- 2. CREACIÓN DE TABLAS CON RESTRICCIONES
 -- =====================================================
 
+\echo 'Iniciando creación de tablas...'
+
 -- =====================================================
 -- 2.1 Tabla: clientes
 -- =====================================================
+\echo 'Creando tabla clientes...'
+DROP TABLE IF EXISTS ventas.clientes CASCADE;
 CREATE TABLE ventas.clientes (
     cliente_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombres VARCHAR(100) NOT NULL,
@@ -67,9 +101,13 @@ COMMENT ON COLUMN ventas.clientes.fecha_registro IS 'Fecha y hora de registro de
 COMMENT ON COLUMN ventas.clientes.estado IS 'Estado del cliente: A=Activo, I=Inactivo';
 COMMENT ON COLUMN ventas.clientes.telefono IS 'Número de teléfono del cliente';
 
+\echo 'Tabla clientes creada exitosamente.'
+
 -- =====================================================
 -- 2.2 Tabla: productos
 -- =====================================================
+\echo 'Creando tabla productos...'
+DROP TABLE IF EXISTS ventas.productos CASCADE;
 CREATE TABLE ventas.productos (
     producto_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     sku VARCHAR(50) NOT NULL,
@@ -97,9 +135,13 @@ COMMENT ON COLUMN ventas.productos.precio IS 'Precio del producto en soles';
 COMMENT ON COLUMN ventas.productos.activo IS 'Indica si el producto está disponible para venta';
 COMMENT ON COLUMN ventas.productos.fecha_creacion IS 'Fecha de creación del producto en el sistema';
 
+\echo 'Tabla productos creada exitosamente.'
+
 -- =====================================================
 -- 2.3 Tabla: pedidos
 -- =====================================================
+\echo 'Creando tabla pedidos...'
+DROP TABLE IF EXISTS ventas.pedidos CASCADE;
 CREATE TABLE ventas.pedidos (
     pedido_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     cliente_id BIGINT NOT NULL,
@@ -123,9 +165,13 @@ COMMENT ON COLUMN ventas.pedidos.fecha_pedido IS 'Fecha en que se realizó el pe
 COMMENT ON COLUMN ventas.pedidos.estado IS 'Estado actual del pedido';
 COMMENT ON COLUMN ventas.pedidos.fecha_actualizacion IS 'Última fecha de actualización del pedido';
 
+\echo 'Tabla pedidos creada exitosamente.'
+
 -- =====================================================
 -- 2.4 Tabla: items_pedido
 -- =====================================================
+\echo 'Creando tabla items_pedido...'
+DROP TABLE IF EXISTS ventas.items_pedido CASCADE;
 CREATE TABLE ventas.items_pedido (
     item_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     pedido_id BIGINT NOT NULL,
@@ -157,54 +203,71 @@ COMMENT ON COLUMN ventas.items_pedido.cantidad IS 'Cantidad del producto en el i
 COMMENT ON COLUMN ventas.items_pedido.precio_unitario IS 'Precio unitario del producto al momento del pedido';
 COMMENT ON COLUMN ventas.items_pedido.fecha_creacion IS 'Fecha de creación del item';
 
+\echo 'Tabla items_pedido creada exitosamente.'
+
 -- =====================================================
 -- 3. CREACIÓN DE ÍNDICES PARA OPTIMIZACIÓN
 -- =====================================================
 
+\echo 'Creando índices para optimización...'
+
 -- Índices para búsquedas frecuentes
-CREATE INDEX idx_clientes_email ON ventas.clientes (email);
-CREATE INDEX idx_clientes_pais ON ventas.clientes (pais_iso2);
-CREATE INDEX idx_clientes_estado ON ventas.clientes (estado);
+CREATE INDEX IF NOT EXISTS idx_clientes_email ON ventas.clientes (email);
+CREATE INDEX IF NOT EXISTS idx_clientes_pais ON ventas.clientes (pais_iso2);
+CREATE INDEX IF NOT EXISTS idx_clientes_estado ON ventas.clientes (estado);
 
-CREATE INDEX idx_productos_sku ON ventas.productos (sku);
-CREATE INDEX idx_productos_categoria ON ventas.productos (categoria);
-CREATE INDEX idx_productos_activo ON ventas.productos (activo);
+CREATE INDEX IF NOT EXISTS idx_productos_sku ON ventas.productos (sku);
+CREATE INDEX IF NOT EXISTS idx_productos_categoria ON ventas.productos (categoria);
+CREATE INDEX IF NOT EXISTS idx_productos_activo ON ventas.productos (activo);
 
-CREATE INDEX idx_pedidos_cliente ON ventas.pedidos (cliente_id);
-CREATE INDEX idx_pedidos_fecha ON ventas.pedidos (fecha_pedido);
-CREATE INDEX idx_pedidos_estado ON ventas.pedidos (estado);
+CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON ventas.pedidos (cliente_id);
+CREATE INDEX IF NOT EXISTS idx_pedidos_fecha ON ventas.pedidos (fecha_pedido);
+CREATE INDEX IF NOT EXISTS idx_pedidos_estado ON ventas.pedidos (estado);
 
-CREATE INDEX idx_items_pedido ON ventas.items_pedido (pedido_id);
-CREATE INDEX idx_items_producto ON ventas.items_pedido (producto_id);
+CREATE INDEX IF NOT EXISTS idx_items_pedido ON ventas.items_pedido (pedido_id);
+CREATE INDEX IF NOT EXISTS idx_items_producto ON ventas.items_pedido (producto_id);
+
+\echo 'Índices creados exitosamente.'
 
 -- =====================================================
 -- 4. INSERCIÓN DE DATOS DE PRUEBA
 -- =====================================================
 
+\echo 'Iniciando inserción de datos de prueba...'
+
 -- =====================================================
 -- 4.1 Insertar clientes
 -- =====================================================
+\echo 'Insertando clientes...'
 INSERT INTO ventas.clientes (nombres, apellidos, email, pais_iso2, telefono)
 VALUES
     ('Ana', 'Ríos', 'ana.rios@example.com', 'PE', '555-0001'),
     ('Luis', 'Paredes', 'luis.paredes@example.com', 'CL', '555-0002'),
     ('María', 'García', 'maria.garcia@example.com', 'MX', '555-0003'),
-    ('José', 'Quispe', 'jose.quispe@example.com', 'PE', '555-0004');
+    ('José', 'Quispe', 'jose.quispe@example.com', 'PE', '555-0004')
+ON CONFLICT (email) DO NOTHING;
+
+\echo 'Clientes insertados exitosamente.'
 
 -- =====================================================
 -- 4.2 Insertar productos
 -- =====================================================
+\echo 'Insertando productos...'
 INSERT INTO ventas.productos (sku, titulo, categoria, precio)
 VALUES
     ('BK-ML-001', 'Introducción al Machine Learning', 'Tecnología', 120.00),
     ('BK-SQL-101', 'SQL para Ciencia de Datos', 'Tecnología', 90.00),
     ('BK-IA-202', 'Fundamentos de IA', 'Tecnología', 150.00),
     ('BK-NOV-01', 'Novela Histórica Andina', 'Literatura', 60.00),
-    ('BK-DS-303', 'Data Science Avanzado', 'Tecnología', 200.00);
+    ('BK-DS-303', 'Data Science Avanzado', 'Tecnología', 200.00)
+ON CONFLICT (sku) DO NOTHING;
+
+\echo 'Productos insertados exitosamente.'
 
 -- =====================================================
 -- 4.3 Insertar pedidos e items
 -- =====================================================
+\echo 'Insertando pedidos e items...'
 
 -- Pedido 1 (cliente Ana)
 INSERT INTO ventas.pedidos (cliente_id, estado) 
@@ -214,7 +277,8 @@ RETURNING pedido_id;
 INSERT INTO ventas.items_pedido (pedido_id, producto_id, cantidad, precio_unitario)
 VALUES
     (1, 1, 1, 120.00),
-    (1, 2, 1, 90.00);
+    (1, 2, 1, 90.00)
+ON CONFLICT (pedido_id, producto_id) DO NOTHING;
 
 -- Pedido 2 (cliente Luis)
 INSERT INTO ventas.pedidos (cliente_id, estado) 
@@ -224,7 +288,8 @@ RETURNING pedido_id;
 INSERT INTO ventas.items_pedido (pedido_id, producto_id, cantidad, precio_unitario)
 VALUES
     (2, 3, 1, 150.00),
-    (2, 4, 2, 60.00);
+    (2, 4, 2, 60.00)
+ON CONFLICT (pedido_id, producto_id) DO NOTHING;
 
 -- Pedido 3 (cliente María)
 INSERT INTO ventas.pedidos (cliente_id, estado) 
@@ -233,11 +298,16 @@ RETURNING pedido_id;
 
 INSERT INTO ventas.items_pedido (pedido_id, producto_id, cantidad, precio_unitario)
 VALUES
-    (3, 5, 1, 200.00);
+    (3, 5, 1, 200.00)
+ON CONFLICT (pedido_id, producto_id) DO NOTHING;
+
+\echo 'Pedidos e items insertados exitosamente.'
 
 -- =====================================================
 -- 5. CONSULTAS DE VERIFICACIÓN
 -- =====================================================
+
+\echo 'Verificando datos insertados...'
 
 -- Verificar datos insertados
 SELECT 'Clientes' AS tabla, COUNT(*) AS registros FROM ventas.clientes
@@ -317,6 +387,8 @@ ORDER BY total_cliente DESC;
 -- 7. FUNCIONES Y PROCEDIMIENTOS DE UTILIDAD
 -- =====================================================
 
+\echo 'Creando funciones de utilidad...'
+
 -- Función para calcular total de pedido
 CREATE OR REPLACE FUNCTION ventas.calcular_total_pedido(p_pedido_id BIGINT)
 RETURNS NUMERIC(12,2) AS $$
@@ -332,11 +404,16 @@ $$ LANGUAGE plpgsql;
 -- Comentario en la función
 COMMENT ON FUNCTION ventas.calcular_total_pedido(BIGINT) IS 'Calcula el total de un pedido sumando todos sus items';
 
+\echo 'Función creada exitosamente.'
+
 -- =====================================================
 -- 8. VISTAS ÚTILES
 -- =====================================================
 
+\echo 'Creando vistas útiles...'
+
 -- Vista de resumen de pedidos
+DROP VIEW IF EXISTS ventas.vista_resumen_pedidos CASCADE;
 CREATE VIEW ventas.vista_resumen_pedidos AS
 SELECT 
     p.pedido_id,
@@ -355,6 +432,8 @@ GROUP BY p.pedido_id, c.cliente_id, c.nombres, c.apellidos, c.email, c.pais_iso2
 
 COMMENT ON VIEW ventas.vista_resumen_pedidos IS 'Vista que muestra un resumen completo de cada pedido';
 
+\echo 'Vista creada exitosamente.'
+
 -- =====================================================
 -- 9. SCRIPT DE LIMPIEZA (OPCIONAL)
 -- =====================================================
@@ -368,13 +447,19 @@ COMMENT ON VIEW ventas.vista_resumen_pedidos IS 'Vista que muestra un resumen co
 -- =====================================================
 
 -- Mensaje de finalización
-DO $$
-BEGIN
-    RAISE NOTICE '=====================================================';
-    RAISE NOTICE 'ANDINA DB - Instalación completada exitosamente';
-    RAISE NOTICE 'Base de datos: dbandina';
-    RAISE NOTICE 'Esquema: ventas';
-    RAISE NOTICE 'Tablas creadas: 4';
-    RAISE NOTICE 'Datos de prueba insertados: Sí';
-    RAISE NOTICE '=====================================================';
-END $$;
+\echo '====================================================='
+\echo 'ANDINA DB - Instalación completada exitosamente'
+\echo 'Base de datos: dbandina'
+\echo 'Esquema: ventas'
+\echo 'Tablas creadas: 4'
+\echo 'Datos de prueba insertados: Sí'
+\echo 'Fecha de finalización: ' 
+\! date
+\echo '====================================================='
+
+-- Cerrar spool de logging
+\o
+
+-- Mensaje final
+\echo 'Log guardado en: logs/andina_db_install_*.log'
+\echo 'Instalación completada. Revisar el log para detalles.'
